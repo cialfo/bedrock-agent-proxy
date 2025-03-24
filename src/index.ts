@@ -11,8 +11,98 @@
  * Learn more at https://developers.cloudflare.com/workers/
  */
 
+import { BedrockAgentRuntimeClient, InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
+import { v4 as uuidv4 } from "uuid";
+
+export interface Env {
+  AWS_ACCESS_KEY_ID: string;
+  AWS_SECRET_ACCESS_KEY: string;
+  AWS_REGION: string;
+  AWS_BEDROCK_AGENT_ID: string;
+  AWS_BEDROCK_AGENT_ALIAS_ID: string;
+}
+
+/**
+ * Cloudflare Worker that calls AWS Bedrock Agent
+ */
 export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		return new Response('Hello World!');
-	},
-} satisfies ExportedHandler<Env>;
+	async fetch(request: Request, env: Env): Promise<Response> {
+		if (request.method === "OPTIONS") {
+			return new Response(null, {
+				status: 204,
+				headers: {
+					"Access-Control-Allow-Origin": "*",
+					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+					"Access-Control-Allow-Headers": "Content-Type",
+				},
+			});
+		}
+
+		try {
+			const requestData: { userToken: string, tenantAccessToken: string, userInput: string } = await request.json();
+
+			// Extract session attributes and user input
+			const { userToken, tenantAccessToken, userInput } = requestData;
+
+			if (!userInput) {
+				return new Response(JSON.stringify({ error: "Missing user input" }), { status: 400 });
+			}
+
+			// Initialize AWS Bedrock Client
+			const bedrockClient = new BedrockAgentRuntimeClient({
+				region: env.AWS_REGION,
+				credentials: {
+					accessKeyId: env.AWS_ACCESS_KEY_ID,
+					secretAccessKey: env.AWS_SECRET_ACCESS_KEY
+				}
+			});
+
+			const sessionId = uuidv4();
+
+			// Invoke Bedrock Agent
+			const command = new InvokeAgentCommand({
+				agentId: env.AWS_BEDROCK_AGENT_ID,
+				sessionState: {
+					sessionAttributes: { userToken, tenantAccessToken }
+				},
+				agentAliasId: env.AWS_BEDROCK_AGENT_ALIAS_ID,
+				sessionId: sessionId,
+				inputText: userInput,
+				enableTrace: true,
+				endSession: false
+			});
+
+			const response = await bedrockClient.send(command);
+
+			let completion = "";
+			if (response.completion === undefined) {
+				throw new Error("Completion is undefined");
+			}
+
+			for await (const chunkEvent of response.completion) {
+				const chunk = chunkEvent.chunk;
+				console.log(chunk);
+				const decodedResponse = new TextDecoder("utf-8").decode(chunk?.bytes);
+				completion += decodedResponse;
+			}
+
+			// Return the response from the Bedrock Agent
+			return new Response(JSON.stringify({ sessionId: sessionId, completion }), {
+				headers: {
+					"Content-Type": "application/json",
+					"Access-Control-Allow-Origin": "*",
+				},
+			});
+
+		} catch (error) {
+			console.error("Error invoking Bedrock Agent:", error);
+			return new Response(JSON.stringify({ error: "Failed to call Bedrock Agent" }), {
+				status: 500,
+				headers: {
+					"Access-Control-Allow-Origin": "*",
+				},
+			});
+		}
+	}
+};
+

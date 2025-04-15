@@ -39,13 +39,13 @@ export default {
 		}
 
 		try {
-			const requestData: { userToken: string, tenantAccessToken: string, userInput: string } = await request.json();
+			const requestData: { userToken: string, tenantAccessToken: string, userInput: string, agentId: string, agentAliasId: string, userUuid: string, endSession: boolean } = await request.json();
 
 			// Extract session attributes and user input
-			const { userToken, tenantAccessToken, userInput } = requestData;
+			const { userToken, tenantAccessToken, userInput, agentId, agentAliasId, userUuid, endSession } = requestData;
 
-			if (!userInput) {
-				return new Response(JSON.stringify({ error: "Missing user input" }), { status: 400 });
+			if (!userInput || !userToken || !tenantAccessToken) {
+				return new Response(JSON.stringify({ error: "Missing required params" }), { status: 400 });
 			}
 
 			// Initialize AWS Bedrock Client
@@ -57,19 +57,20 @@ export default {
 				}
 			});
 
-			const sessionId = uuidv4();
+			const sessionId = userUuid || uuidv4();
+
 
 			// Invoke Bedrock Agent
 			const command = new InvokeAgentCommand({
-				agentId: env.AWS_BEDROCK_AGENT_ID,
+				agentId: agentId || env.AWS_BEDROCK_AGENT_ID,
 				sessionState: {
 					sessionAttributes: { userToken, tenantAccessToken }
 				},
-				agentAliasId: env.AWS_BEDROCK_AGENT_ALIAS_ID,
+				agentAliasId: agentAliasId || env.AWS_BEDROCK_AGENT_ALIAS_ID,
 				sessionId: sessionId,
 				inputText: userInput,
 				enableTrace: true,
-				endSession: false
+				endSession: endSession || false,
 			});
 
 			const response = await bedrockClient.send(command);

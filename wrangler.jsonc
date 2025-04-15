@@ -9,7 +9,7 @@
 	"compatibility_date": "2025-03-17",
 	"observability": {
 		"enabled": true
-	}
+	},
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -27,7 +27,12 @@
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
-	// "vars": { "MY_VARIABLE": "production_value" },
+	"vars": {
+		"AWS_REGION": "ap-northeast-1",
+		"AWS_ACCESS_KEY_ID": "AKIAWQMC3NOKPOIPSTVC",
+		"AWS_BEDROCK_AGENT_ID": "QM04ZTRVSE", // https://447487896468-ndw4xnhv.ap-northeast-1.console.aws.amazon.com/bedrock/home?region=ap-northeast-1#/agents/QM04ZTRVSE
+		"AWS_BEDROCK_AGENT_ALIAS_ID": "CIXFMIKQBN"
+	},
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
